@@ -1,60 +1,130 @@
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/user.model');
-const { generateAccessToken, generateRefreshToken } = require('../utils/jwt.utils');
+const generateTokens = require('../utils/generateTokens');
+const validator = require('validator');
+require('colors');
 
-// User registration
+// ─────────── Register ───────────
 exports.register = async (req, res) => {
   const { username, email, password } = req.body;
-  const userExist = await User.findOne({ email });
-  if (userExist) return res.status(400).json({ message: 'User already exists' });
 
-  const hashedPassword = await bcrypt.hash(password, 10);
-  const user = new User({ username, email, password: hashedPassword });
-  await user.save();
-  
-  const accessToken = generateAccessToken(user._id);
-  const refreshToken = generateRefreshToken(user._id);
+  // Basic validations
+  if (!username || !email || !password) {
+    return res.status(400).json({ message: 'Please provide all required fields' });
+  }
 
-  res.cookie('refreshToken', refreshToken, { httpOnly: true, secure: true });
-  res.status(201).json({ accessToken, user });
+  if (!validator.isEmail(email)) {
+    return res.status(400).json({ message: 'Invalid email address' });
+  }
+
+  if (password.length < 6 || !/\d/.test(password) || !/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
+    return res.status(400).json({ message: 'Password must be at least 6 characters, include a number and special character' });
+  }
+
+  try {
+    const existingUser = await User.findOne({ email });
+    if (existingUser) return res.status(400).json({ message: 'Email already exists' });
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const newUser = await User.create({ username, email, password: hashedPassword });
+
+    const { accessToken, refreshToken } = generateTokens(newUser._id);
+
+    res.cookie('accessToken', accessToken, cookieOptions(15 * 60 * 1000));
+    res.cookie('refreshToken', refreshToken, cookieOptions(7 * 24 * 60 * 60 * 1000));
+
+    console.log(`✅ Registered: ${email}`.green.bold);
+
+    res.status(201).json({
+      message: 'Registered successfully',
+      user: sanitizeUser(newUser),
+    });
+  } catch (err) {
+    console.error(`❌ Register Error: ${err.message}`.red.bold);
+    res.status(500).json({ message: 'Server error' });
+  }
 };
 
-// User login
+// ─────────── Login ───────────
 exports.login = async (req, res) => {
   const { email, password } = req.body;
-  const user = await User.findOne({ email });
-  if (!user) return res.status(400).json({ message: 'Invalid credentials' });
+  if (!email || !password) return res.status(400).json({ message: 'Please provide both email and password' });
 
-  const validPassword = await bcrypt.compare(password, user.password);
-  if (!validPassword) return res.status(400).json({ message: 'Invalid credentials' });
+  try {
+    const user = await User.findOne({ email });
+    if (!user || !(await bcrypt.compare(password, user.password))) {
+      return res.status(400).json({ message: 'Invalid credentials' });
+    }
 
-  const accessToken = generateAccessToken(user._id);
-  const refreshToken = generateRefreshToken(user._id);
+    const { accessToken, refreshToken } = generateTokens(user._id);
 
-  res.cookie('refreshToken', refreshToken, { httpOnly: true, secure: true });
-  res.status(200).json({ accessToken,refreshToken, user });
+    res.cookie('accessToken', accessToken, cookieOptions(15 * 60 * 1000));
+    res.cookie('refreshToken', refreshToken, cookieOptions(7 * 24 * 60 * 60 * 1000));
+
+    console.log(`🔓 Logged in: ${email}`.blue.bold);
+
+    res.status(200).json({
+      message: 'Logged in successfully',
+      user: sanitizeUser(user),
+    });
+  } catch (err) {
+    console.error(`❌ Login Error: ${err.message}`.red.bold);
+    res.status(500).json({ message: 'Server error' });
+  }
 };
 
-// Refresh access token
+// ─────────── Logout ───────────
+exports.logout = async (req, res) => {
+  try {
+    const user = await User.findById(req.userId);
+    res.clearCookie('accessToken');
+    res.clearCookie('refreshToken');
+
+    if (user) {
+      console.log(`🔒 Logged out: ${user.email}`.yellow.bold);
+    } else {
+      console.log(`🔒 Logged out user ID: ${req.userId}`.yellow.bold);
+    }
+
+    res.status(200).json({ message: 'Logged out successfully' });
+  } catch (err) {
+    console.error(`❌ Logout Error: ${err.message}`.red.bold);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// ─────────── Refresh Token ───────────
 exports.refreshToken = (req, res) => {
-  const { refreshToken } = req.cookies;
-  if (!refreshToken) return res.status(401).json({ message: 'Unauthorized' });
+  const refreshTokenFromClient = req.cookies.refreshToken;
 
-  jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET, (err, user) => {
-    if (err) return res.status(403).json({ message: 'Forbidden' });
+  if (!refreshTokenFromClient) {
+    return res.status(403).json({ message: 'Refresh token required' });
+  }
 
-    const accessToken = generateAccessToken(user._id);
-    res.json({ accessToken });
-  });
+  try {
+    const decoded = jwt.verify(refreshTokenFromClient, process.env.JWT_REFRESH_SECRET);
+    const { accessToken, refreshToken } = generateTokens(decoded.userId);
+
+    res.cookie('accessToken', accessToken, cookieOptions(15 * 60 * 1000));
+    res.cookie('refreshToken', refreshToken, cookieOptions(7 * 24 * 60 * 60 * 1000));
+
+    res.status(200).json({ message: 'Tokens refreshed successfully' });
+  } catch (err) {
+    console.error(`❌ Refresh Token Error: ${err.message}`.red.bold);
+    res.status(403).json({ message: 'Invalid refresh token' });
+  }
 };
 
-// Google OAuth login callback
-exports.googleCallback = (req, res) => {
-  const user = req.user;
-  const accessToken = generateAccessToken(user._id);
-  const refreshToken = generateRefreshToken(user._id);
+// ─────────── Get Current User ───────────
+exports.getCurrentUser = async (req, res) => {
+  try {
+    const user = await User.findById(req.userId).select('-password');
+    if (!user) return res.status(404).json({ message: 'User not found' });
 
-  res.cookie('refreshToken', refreshToken, { httpOnly: true, secure: true });
-  res.json({ accessToken, user });
+    res.status(200).json({ user });
+  } catch (err) {
+    console.error(`❌ Get User Error: ${err.message}`.red.bold);
+    res.status(500).json({ message: 'Server error' });
+  }
 };

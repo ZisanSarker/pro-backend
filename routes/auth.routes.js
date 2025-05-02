@@ -1,39 +1,19 @@
 const express = require('express');
-const passport = require('passport');
+const controller = require('../controllers/auth.controller');
+const authMiddleware = require('../middlewares/auth.middleware');
+
 const router = express.Router();
 
-// Google Auth
-router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
+// ──────── Local Auth Routes ────────
 
-router.get('/google/callback',
-  passport.authenticate('google', { failureRedirect: '/auth/failure' }),
-  (req, res) => {
-    res.send('Google login success');
-  }
-);
+// Public routes
+router.post('/register', controller.register);
+router.post('/login', controller.login);
+router.post('/refresh-token', controller.refreshToken);
 
-// Facebook Auth
-router.get('/facebook', passport.authenticate('facebook', { scope: ['email'] }));
+// Protected routes
+router.get('/logout', authMiddleware, controller.logout);
+router.get('/me', authMiddleware, controller.getCurrentUser);
 
-router.get('/facebook/callback',
-  passport.authenticate('facebook', { failureRedirect: '/auth/failure' }),
-  (req, res) => {
-    res.send('Facebook login success');
-  }
-);
-
-// GitHub Auth
-router.get('/github', passport.authenticate('github', { scope: ['user:email'] }));
-
-router.get('/github/callback',
-  passport.authenticate('github', { failureRedirect: '/auth/failure' }),
-  (req, res) => {
-    res.send('GitHub login success');
-  }
-);
-
-router.get('/failure', (req, res) => {
-  res.send('Login failed');
-});
 
 module.exports = router;

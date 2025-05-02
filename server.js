@@ -1,50 +1,73 @@
 const express = require('express');
-const mongoose = require('mongoose');
-const passport = require('passport');
-const cors = require('cors');
+const dotenv = require('dotenv');
+const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
+const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const session = require('express-session');
+const connectDB = require('./config/db');
 const authRoutes = require('./routes/auth.routes');
-require('dotenv').config();
+require('colors');
 
-// 👇 Import Passport strategy configuration
-require('./config/passport');
+// Load environment variables
+dotenv.config();
+
+// Connect to DB
+connectDB();
 
 const app = express();
 
-// Middleware
+// ───────────── Middleware ─────────────
 app.use(express.json());
 app.use(cookieParser());
-app.use(cors())
+app.use(morgan('dev'));
+app.use(helmet());
 
-// ✅ Add session configuration
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'superSecretKey', // make sure to store this in .env
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    httpOnly: true,
-    secure: false, // set to true in production with HTTPS
-    maxAge: 1000 * 60 * 60 * 24, // 1 day
-  },
+app.use(cors({
+  origin: process.env.CLIENT_URL,
+  credentials: true,
 }));
 
-// Passport.js setup
-app.use(passport.initialize());
-app.use(passport.session());
+// ───────────── Rate Limiting on Auth Only ─────────────
+const authRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  message: 'Too many requests, please try again later.',
+});
+app.use('/api/auth', authRateLimiter);
 
-// MongoDB connection
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log('MongoDB connected'))
-  .catch(err => console.error(err));
+// ───────────── Session & Passport ─────────────
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET,
+    resave: false,
+    saveUninitialized: false, // better for security
+    cookie: {
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    },
+  })
+);
 
-// Routes
-app.use('/auth', authRoutes);
+// ───────────── Routes ─────────────
+app.use('/api/auth', authRoutes);
 
 app.get('/', (req, res) => {
-  res.send('Welcome to the Pro-Backend Server');
+  res.send('🚀 Server is running...');
 });
 
-// Start server
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+// ───────────── Global Error Handler ─────────────
+app.use((err, req, res, next) => {
+  console.error(`❌ Server Error: ${err.message}`.red.bold);
+  res.status(500).json({
+    message: 'Server error',
+    error: process.env.NODE_ENV === 'development' ? err.message : null,
+  });
+});
+
+// ───────────── Server ─────────────
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on http://localhost:${PORT}`.bgGreen.black);
+});

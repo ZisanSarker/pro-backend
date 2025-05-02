@@ -1,11 +1,12 @@
 const mongoose = require('mongoose');
+require('colors');
 
 const connectDB = async () => {
   try {
     await mongoose.connect(process.env.MONGO_URI);
-    console.log('MongoDB connected');
+    console.log('✅ MongoDB Connected'.cyan.bold);
   } catch (err) {
-    console.error('DB connection failed', err);
+    console.error(`❌ MongoDB Error: ${err.message}`.red.bold);
     process.exit(1);
   }
 };
