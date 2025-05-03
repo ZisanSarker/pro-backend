@@ -3,7 +3,7 @@ const passport = require('passport');
 
 // Import each strategy
 require('./strategies/google.strategy')(passport);
-//require('./strategies/facebook.strategy')(passport); // create later
+require('./strategies/facebook.strategy')(passport); // create later
 require('./strategies/github.strategy')(passport);
 
 // Serialize & deserialize

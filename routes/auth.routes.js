@@ -21,5 +21,7 @@ router.get('/google/callback', controller.handleGoogleCallback);
 router.get('/github', controller.startGithubAuth);
 router.get('/github/callback', controller.handleGithubCallback);
 
+router.get('/facebook', controller.startFacebookAuth);
+router.get('/facebook/callback', controller.handleFacebookCallback);
 
 module.exports = router;

@@ -13,14 +13,14 @@ const userSchema = new mongoose.Schema({
   email: {
     type: String,
     required: function () {
-      return !this.githubId;
+      return !this.githubId && !this.facebookId;
     },
     unique: true,
     lowercase: true,
     trim: true,
     validate: {
       validator: function (val) {
-        if (!val && this.githubId) return true; // allow empty if GitHub login
+        if (!val && this.githubId && this.facebookId) return true; // allow empty if GitHub login
         return validator.isEmail(val);
       },
       message: 'Please provide a valid email',
@@ -29,7 +29,7 @@ const userSchema = new mongoose.Schema({
   password: {
     type: String,
     required: function () {
-      return !this.googleId && !this.githubId;
+      return !this.googleId && !this.githubId && !this.facebookId;
     },
     minlength: [8, 'Password must be at least 8 characters'],
     select: false,
@@ -45,7 +45,11 @@ const userSchema = new mongoose.Schema({
     unique: true,
     sparse: true,
   },
-
+  facebookId: {
+    type: String,
+    unique: true,
+    sparse: true,
+  },
   profilePicture: {
     type: String,
     default: 'default.jpg',
@@ -91,6 +95,7 @@ userSchema.index({ username: 1 });
 userSchema.virtual('provider').get(function () {
   if (this.googleId) return 'google';
   if (this.githubId) return 'github';
+  if (this.facebookId) return 'facebook';
   return 'local';
 });
 

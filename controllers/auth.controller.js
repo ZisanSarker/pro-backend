@@ -222,3 +222,31 @@ exports.handleGithubCallback = [
     }
   },
 ];
+
+// ─────────── oAuth 2.0 Facebook ───────────
+exports.startFacebookAuth = passport.authenticate('facebook', {
+  scope: ['email'],
+});
+
+exports.handleFacebookCallback = [
+  passport.authenticate('facebook', {
+    failureRedirect: '/login',
+  }),
+  async (req, res) => {
+    try {
+      const user = req.user;
+      user.lastLogin = Date.now();
+      await user.save({ validateBeforeSave: false });
+
+      const { accessToken, refreshToken } = generateTokens(user._id);
+
+      res.cookie('accessToken', accessToken, cookieOptions(15 * 60 * 1000));
+      res.cookie('refreshToken', refreshToken, cookieOptions(7 * 24 * 60 * 60 * 1000));
+
+      console.log(`Logged in via Facebook: ${user.email}`.magenta.bold);
+      res.redirect(process.env.FRONTEND_URL || '/');
+    } catch (err) {
+      console.error(`Facebook Auth Error: ${err.message}`.red.bold);
+    }
+  },
+];
