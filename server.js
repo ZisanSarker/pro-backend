@@ -58,8 +58,12 @@ app.use(passport.session());
 app.use('/api/auth', authRoutes);
 
 app.get('/', (req, res) => {
-  res.send('Server is running...');
+  res.send(`
+    <a href="/api/auth/github">Login with GitHub</a>
+    <a href="/api/auth/google">Login with Google</a>
+  `);
 });
+
 
 // ───────────── Global Error Handler ─────────────
 app.use((err, req, res, next) => {

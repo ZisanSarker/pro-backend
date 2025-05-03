@@ -18,4 +18,8 @@ router.get('/me', authMiddleware, controller.getCurrentUser);
 router.get('/google', controller.startGoogleAuth);
 router.get('/google/callback', controller.handleGoogleCallback);
 
+router.get('/github', controller.startGithubAuth);
+router.get('/github/callback', controller.handleGithubCallback);
+
+
 module.exports = router;

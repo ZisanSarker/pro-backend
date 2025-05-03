@@ -181,7 +181,6 @@ exports.handleGoogleCallback = [
 
       // Generate JWT tokens
       const { accessToken, refreshToken } = generateTokens(user._id);
-
       // Set cookies
       res.cookie('accessToken', accessToken, cookieOptions(15 * 60 * 1000));
       res.cookie('refreshToken', refreshToken, cookieOptions(7 * 24 * 60 * 60 * 1000));
@@ -192,7 +191,34 @@ exports.handleGoogleCallback = [
       res.redirect(process.env.FRONTEND_URL || '/');
     } catch (err) {
       console.error(`Google Auth Error: ${err.message}`.red.bold);
-      res.redirect('/login?error=Authentication%20failed');
     }
   }
+];
+
+// ─────────── oAuth 2.0 GitHub ───────────
+exports.startGithubAuth = passport.authenticate('github', {
+  scope: ['user:email'],
+});
+
+exports.handleGithubCallback = [
+  passport.authenticate('github', {
+    failureRedirect: '/login',
+  }),
+  async (req, res) => {
+    try {
+      const user = req.user;
+      user.lastLogin = Date.now();
+      await user.save({ validateBeforeSave: false });
+
+      const { accessToken, refreshToken } = generateTokens(user._id);
+
+      res.cookie('accessToken', accessToken, cookieOptions(15 * 60 * 1000));
+      res.cookie('refreshToken', refreshToken, cookieOptions(7 * 24 * 60 * 60 * 1000));
+
+      console.log(`Logged in via GitHub: ${user.email}`.cyan.bold);
+      res.redirect(process.env.FRONTEND_URL || '/');
+    } catch (err) {
+      console.error(`GitHub Auth Error: ${err.message}`.red.bold);
+    }
+  },
 ];
