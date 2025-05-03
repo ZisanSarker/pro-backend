@@ -1,7 +1,6 @@
 const express = require('express');
 const controller = require('../controllers/auth.controller');
 const authMiddleware = require('../middlewares/auth.middleware');
-
 const router = express.Router();
 
 // ──────── Local Auth Routes ────────
@@ -15,5 +14,8 @@ router.post('/refresh-token', controller.refreshToken);
 router.get('/logout', authMiddleware, controller.logout);
 router.get('/me', authMiddleware, controller.getCurrentUser);
 
+// ──────── OAuth Routes ────────
+router.get('/google', controller.startGoogleAuth);
+router.get('/google/callback', controller.handleGoogleCallback);
 
 module.exports = router;

@@ -8,6 +8,7 @@ const rateLimit = require('express-rate-limit');
 const session = require('express-session');
 const connectDB = require('./config/db');
 const authRoutes = require('./routes/auth.routes');
+const passport = require('./config/passport')
 require('colors');
 
 // Load environment variables
@@ -49,17 +50,20 @@ app.use(
     },
   })
 );
+// ───────────── Passport ─────────────
+app.use(passport.initialize());
+app.use(passport.session());
 
 // ───────────── Routes ─────────────
 app.use('/api/auth', authRoutes);
 
 app.get('/', (req, res) => {
-  res.send('🚀 Server is running...');
+  res.send('Server is running...');
 });
 
 // ───────────── Global Error Handler ─────────────
 app.use((err, req, res, next) => {
-  console.error(`❌ Server Error: ${err.message}`.red.bold);
+  console.error(`Server Error: ${err.message}`.red.bold);
   res.status(500).json({
     message: 'Server error',
     error: process.env.NODE_ENV === 'development' ? err.message : null,
